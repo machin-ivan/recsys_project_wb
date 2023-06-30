@@ -5,7 +5,7 @@ import numpy as np
 
 from model import BERT
 
-from torchmetrics import RetrievalHitRate, RetrievalNormalizedDCG, RetrievalMAP, RetrievalRecall
+from torchmetrics import RetrievalHitRate, RetrievalNormalizedDCG, RetrievalMRR
 
 
 class BERT4REC(pl.LightningModule):
@@ -55,14 +55,13 @@ class BERT4REC(pl.LightningModule):
             dropout_rate_attn=self.dropout_rate_attn,
             initializer_range=self.initializer_range
         )
-        self.out = nn.Linear(self.hidden_dim, item_size + 1)  # Mask prediction: 1 ~ args.item_size + 1
-        self.batch_size = batch_size  # Used for step calculation
+        self.out = nn.Linear(self.hidden_dim, item_size + 1)
+        self.batch_size = batch_size 
         # Criterion, metrics
         self.criterion = nn.CrossEntropyLoss(ignore_index=0)
         self.HR = RetrievalHitRate(k=10)  # HR@10
         self.NDCG = RetrievalNormalizedDCG(k=10)  # NDCG@10
-        self.MAP = RetrievalMAP(k=10) # MAP@10
-        self.RECALL = RetrievalRecall(k=10) # Recall@10
+        self.MRR = RetrievalMRR(k=10) # MRR@10
 
     def forward(self, x):
         """
@@ -139,8 +138,7 @@ class BERT4REC(pl.LightningModule):
         indexes = torch.arange(steps, steps + seq.size(0), dtype=torch.long).unsqueeze(1).repeat(1, 101)
         hr = self.HR(recs, labels, indexes)  # dim recs = labels = indexes
         ndcg = self.NDCG(recs, labels, indexes)
-        map = self.MAP(recs, labels, indexes)
-        recall = self.RECALL(recs, labels, indexes)
+        mrr = self.MRR(recs, labels, indexes)
         # Log after the completion of the test_step, on_step=False, on_epoch=True
         self.log("test_loss", loss, on_step=False,
                 on_epoch=True, prog_bar=True, logger=True)
@@ -148,9 +146,7 @@ class BERT4REC(pl.LightningModule):
                 on_epoch=True, prog_bar=True, logger=True)
         self.log("NDCG_test", ndcg, on_step=False,
                 on_epoch=True, prog_bar=True, logger=True)
-        self.log("MAP_test", map, on_step=False,
-                on_epoch=True, prog_bar=True, logger=True)
-        self.log("Recall_test", recall, on_step=False,
+        self.log("MRR_test", mrr, on_step=False,
                 on_epoch=True, prog_bar=True, logger=True)
 
     def predict_step(self, batch: torch.Tensor, batch_idx: int, dataloader_idx=0) -> np.array:
